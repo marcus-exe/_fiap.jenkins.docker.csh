@@ -28,13 +28,13 @@ This project consists of two microservices:
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/marcus-exe/_fiap.jenkins.docker.csh.git
 cd micro-service
 ```
 
 2. Build and run the services:
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 3. Access the services:
@@ -45,10 +45,10 @@ docker-compose up --build
 
 ### Docker Compose Commands
 
-- Start services: `docker-compose up -d`
-- Stop services: `docker-compose down`
-- View logs: `docker-compose logs -f`
-- Rebuild and restart: `docker-compose up -d --build`
+- Start services: `docker compose up -d`
+- Stop services: `docker compose down`
+- View logs: `docker compose logs -f`
+- Rebuild and restart: `docker compose up -d --build`
 
 ## 🔧 Jenkins Integration
 
@@ -151,11 +151,10 @@ docker ps
 
 ```bash
 # Remove all containers, networks, and volumes
-docker-compose down -v
+docker compose down -v
 
 # Remove all stopped containers
 docker system prune -a
-```
 
 ## 📝 Environment Variables
 
@@ -178,5 +177,5 @@ This project is provided as-is for educational and demonstration purposes.
 
 ## 👨‍💻 Author
 
-Marcus Eduardo Sena
+Marcus Sena
 
