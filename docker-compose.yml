@@ -1,0 +1,58 @@
+# docker-compose.yml
+services:
+  products:
+    # C# .NET Products Service
+    build: 
+      context: ./service-products 
+      dockerfile: Dockerfile
+    image: micro-service/products:latest
+    ports:
+      - "8082:8080"  # Port 8082 on host maps to 8080 in container (Jenkins uses 8080)
+    networks:
+      - my-app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  orders:
+    # C# .NET Orders Service
+    build: 
+      context: ./service-orders
+      dockerfile: Dockerfile
+    image: micro-service/orders:latest
+    ports:
+      - "8083:8080"  # Port 8083 on host maps to 8080 in container
+    environment:
+      PRODUCTS_URL: http://products:8080 # Internal communication using service name
+      ASPNETCORE_ENVIRONMENT: Docker
+    networks:
+      - my-app-network
+    depends_on:
+      products:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+  # Sniffer commented out for local testing - uncomment when needed
+  # sniffer:
+  #   image: acceber/tshark:latest
+  #   container_name: tshark_sniffer
+  #   network_mode: service:orders 
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - NET_RAW
+  #   volumes:
+  #     - ./captures:/captures 
+  #   command: tshark -i eth0 -w /captures/insecure_http.pcap port 8080 and host products
+  #   depends_on:
+  #     - orders
+  #   restart: "no" 
+
+networks:
+  my-app-network:
+    driver: bridge

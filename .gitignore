@@ -1,0 +1,26 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+
+# Docker
+captures/*.pcap
+!captures/.gitkeep
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
