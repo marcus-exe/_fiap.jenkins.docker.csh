@@ -12,9 +12,9 @@ pipeline {
         
         stage('Build Images') {
             steps {
-                // Uses docker compose to build the .NET service images defined in docker-compose.yml.
+                // Uses docker-compose to build the .NET service images defined in docker-compose.yml.
                 echo "Starting Docker Image build for .NET 'products' and 'orders' services..."
-                sh 'docker compose build'
+                sh 'docker-compose build'
             }
         }
 
@@ -22,7 +22,7 @@ pipeline {
             steps {
                 // Brings up the microservice network, including the .NET services and the sniffer.
                 echo "Starting deploy with Docker Compose..."
-                sh 'docker compose up -d --force-recreate'
+                sh 'docker-compose up -d --force-recreate'
             }
         }
 
@@ -33,7 +33,7 @@ pipeline {
                 
                 // Example: Use the 'orders' container to make the internal call to 'products'
                 // This call generates the HTTP traffic for the sniffer to capture
-                sh 'docker exec micro-service-orders-1 curl -X GET http://products:8080/api/products'
+                sh 'docker exec orders curl -X GET http://products:8080/api/products'
                 
                 // Ensure the sniffer captured what it needed and saved the file
                 echo "Traffic capture finalized and saved."
@@ -44,7 +44,7 @@ pipeline {
             steps {
                 // Tears down the environment
                 echo "Shutting down containers..."
-                sh 'docker compose down -v'
+                sh 'docker-compose down -v'
             }
         }
     }
