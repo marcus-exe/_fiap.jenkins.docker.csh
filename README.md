@@ -2,6 +2,8 @@
 
 A microservice architecture demonstration project using C# and .NET, containerized with Docker and orchestrated via Docker Compose. This project includes a CI/CD pipeline configured for Jenkins.
 
+[🇧🇷 Leia em Português](README.pt.md)
+
 ## 🏗️ Architecture
 
 This project consists of two microservices:
@@ -58,18 +60,35 @@ This repository is configured to work with Jenkins via SCM (Source Code Manageme
 
 ### Jenkins Setup
 
-If you haven't already set up Jenkins, you can run it with:
+For Jenkins to work with Docker, it needs Docker installed inside the container. Here's how to set it up:
+
+#### Initial Setup (Fresh Installation)
 
 ```bash
+# Create Jenkins container
 docker run -d \
   --name jenkins \
   -p 8080:8080 \
   -p 50000:50000 \
-  -u root \
   -v jenkins_home:/var/jenkins_home \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /usr/local/bin/docker:/usr/local/bin/docker \
   jenkins/jenkins:lts
+
+# Install Docker inside Jenkins container (one-time setup)
+docker exec -u root jenkins bash -c "apt-get update && apt-get install -y docker.io docker-compose"
+
+# Fix Docker socket permissions
+docker exec -u root jenkins chmod 666 /var/run/docker.sock
+
+# Restart Jenkins
+docker restart jenkins
+```
+
+#### Verify Docker Access
+
+```bash
+docker exec jenkins docker --version
+docker exec jenkins docker compose version
 ```
 
 ### Creating a Jenkins Job
@@ -87,10 +106,13 @@ docker run -d \
 The Jenkins pipeline includes the following stages:
 
 1. **Checkout**: Clones the repository via SCM
-2. **Build Images**: Builds Docker images for both services
-3. **Deploy**: Starts the services in detached mode
-4. **Post-Deploy and Security Tests**: Runs integration tests and captures traffic
-5. **Cleanup**: Tears down the environment
+2. **Check Docker Access**: Verifies Docker and Docker Compose are available
+3. **Build Images**: Builds Docker images for both services
+4. **Deploy**: Starts the services in detached mode
+5. **Post-Deploy and Security Tests**: Runs integration tests and inter-service communication
+6. **Cleanup** (Post-action): Automatically cleans up containers after build
+
+Note: The cleanup happens automatically via Jenkins post actions, so containers are removed after each pipeline run.
 
 ## 🗂️ Project Structure
 
@@ -155,6 +177,33 @@ docker compose down -v
 
 # Remove all stopped containers
 docker system prune -a
+```
+
+## 🧪 Testing
+
+### Quick Test
+
+```bash
+# Health checks
+curl http://localhost:8082/health
+curl http://localhost:8083/health
+
+# Get products
+curl http://localhost:8082/api/products
+
+# Get orders
+curl http://localhost:8083/api/orders
+
+# Create a new order (tests inter-service communication)
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Test User","productId":1,"quantity":1}'
+```
+
+### Swagger UI
+
+- Products API Docs: http://localhost:8082/swagger
+- Orders API Docs: http://localhost:8083/swagger
 
 ## 📝 Environment Variables
 
