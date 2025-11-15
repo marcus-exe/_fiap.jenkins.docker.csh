@@ -120,6 +120,8 @@ Nota: A limpeza acontece automaticamente via ações post do Jenkins, então os 
 micro-service/
 ├── docker-compose.yml       # Orquestração Docker Compose
 ├── Jenkinsfile              # Pipeline CI/CD Jenkins
+├── test-security.sh         # Script de teste automatizado de segurança
+├── demo-tshark-jwt.sh       # Demonstração de captura JWT com TShark
 ├── service-products/        # Microsserviço de produtos
 │   ├── Dockerfile
 │   ├── Products.Api.csproj
@@ -301,6 +303,65 @@ curl -X POST http://localhost:8083/api/orders \
   -H "Content-Type: application/json" \
   -d '{"customerName":"Usuário Teste","productId":1,"quantity":1}'
 ```
+
+### Testes Automatizados de Segurança
+
+O projeto inclui scripts de teste automatizados para verificar todas as funcionalidades de segurança:
+
+#### Script de Teste de Segurança
+
+Execute a suíte completa de testes de segurança:
+
+```bash
+./test-security.sh
+```
+
+Este script testa automaticamente:
+- ✅ Acessibilidade dos endpoints de saúde
+- ✅ Endpoints protegidos requerem autenticação
+- ✅ Login com credenciais corretas
+- ✅ Login com senha incorreta (rejeitado)
+- ✅ Proteção contra enumeração de usuários
+- ✅ Rate limiting (5 tentativas por 15 minutos)
+- ✅ Acesso a endpoints protegidos com token válido
+- ✅ Validação de entrada (dados inválidos rejeitados)
+- ✅ Rejeição de token inválido
+
+**Saída esperada:**
+```
+🔒 Security Features Test Script
+================================
+
+1. Testing Health Endpoints (Public)...
+✅ PASS: Health checks accessible
+
+2. Testing Protected Endpoints Without Token...
+✅ PASS: Protected endpoints reject requests without token
+
+...
+
+Test Summary:
+Passed: 11
+Failed: 0
+
+🎉 All security tests passed!
+```
+
+#### Demonstração de Captura JWT com TShark
+
+Demonstre que o TShark pode capturar tokens JWT em texto plano (porque estamos usando HTTP):
+
+```bash
+./demo-tshark-jwt.sh
+```
+
+Este script:
+- Faz uma requisição de login para obter um token JWT
+- Faz uma requisição autenticada à API
+- Mostra que o TShark captura todo o tráfego em texto plano
+- Demonstra por que HTTPS é necessário para produção
+
+**Nota:** Isso demonstra que JWT fornece autenticação mas não criptografa o tráfego. Para produção, implemente HTTPS/TLS.
 
 ### Swagger UI
 

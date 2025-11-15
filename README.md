@@ -120,6 +120,8 @@ Note: The cleanup happens automatically via Jenkins post actions, so containers 
 micro-service/
 ├── docker-compose.yml       # Docker Compose orchestration
 ├── Jenkinsfile              # Jenkins CI/CD pipeline
+├── test-security.sh         # Automated security testing script
+├── demo-tshark-jwt.sh       # TShark JWT capture demonstration
 ├── service-products/        # Products microservice
 │   ├── Dockerfile
 │   ├── Products.Api.csproj
@@ -301,6 +303,65 @@ curl -X POST http://localhost:8083/api/orders \
   -H "Content-Type: application/json" \
   -d '{"customerName":"Test User","productId":1,"quantity":1}'
 ```
+
+### Automated Security Testing
+
+The project includes automated test scripts to verify all security features:
+
+#### Security Test Script
+
+Run the comprehensive security test suite:
+
+```bash
+./test-security.sh
+```
+
+This script automatically tests:
+- ✅ Health endpoints accessibility
+- ✅ Protected endpoints require authentication
+- ✅ Login with correct credentials
+- ✅ Login with incorrect password (rejected)
+- ✅ User enumeration protection
+- ✅ Rate limiting (5 attempts per 15 minutes)
+- ✅ Protected endpoint access with valid token
+- ✅ Input validation (invalid data rejected)
+- ✅ Invalid token rejection
+
+**Expected output:**
+```
+🔒 Security Features Test Script
+================================
+
+1. Testing Health Endpoints (Public)...
+✅ PASS: Health checks accessible
+
+2. Testing Protected Endpoints Without Token...
+✅ PASS: Protected endpoints reject requests without token
+
+...
+
+Test Summary:
+Passed: 11
+Failed: 0
+
+🎉 All security tests passed!
+```
+
+#### TShark JWT Capture Demonstration
+
+Demonstrate that TShark can capture JWT tokens in plain text (because we're using HTTP):
+
+```bash
+./demo-tshark-jwt.sh
+```
+
+This script:
+- Makes a login request to get a JWT token
+- Makes an authenticated API request
+- Shows that TShark captures all traffic in plain text
+- Demonstrates why HTTPS is needed for production
+
+**Note:** This demonstrates that JWT provides authentication but doesn't encrypt traffic. For production, implement HTTPS/TLS.
 
 ### Swagger UI
 
