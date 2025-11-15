@@ -205,6 +205,151 @@ curl -X POST http://localhost:8083/api/orders \
 - Documentação da API de Produtos: http://localhost:8082/swagger
 - Documentação da API de Pedidos: http://localhost:8083/swagger
 
+### Testando a Captura de Rede com TShark
+
+O sniffer TShark captura o tráfego de rede entre os serviços de pedidos e produtos. Aqui está como testá-lo:
+
+#### 1. Verificar se o Container TShark está Rodando
+
+```bash
+# Verificar se o container sniffer está rodando
+docker ps | grep tshark_sniffer
+
+# Ver logs do TShark
+docker logs tshark_sniffer
+
+# Ou usando docker compose
+docker compose logs sniffer
+
+# Verificar todos os containers (incluindo os parados)
+docker compose ps -a
+
+# Se o container saiu, verificar os logs para erros
+docker compose logs sniffer
+```
+
+**Nota:** O container TShark roda como usuário `root` (configurado no docker-compose.yml) que é necessário para permissões de captura de pacotes. Você pode ver um aviso sobre isso nos logs, o que é esperado e seguro para este caso de uso.
+
+#### 2. Gerar Tráfego para Capturar
+
+Como o TShark está configurado para capturar tráfego na porta 8080 entre os serviços de pedidos e produtos, gere alguma comunicação entre serviços:
+
+```bash
+# Criar um pedido (isso vai fazer o serviço de pedidos chamar o serviço de produtos)
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Usuário Teste","productId":1,"quantity":1}'
+
+# Fazer múltiplas requisições para gerar mais tráfego
+for i in {1..5}; do
+  curl -X POST http://localhost:8083/api/orders \
+    -H "Content-Type: application/json" \
+    -d "{\"customerName\":\"Usuário $i\",\"productId\":$i,\"quantity\":$i}"
+  sleep 1
+done
+```
+
+#### 3. Verificar o Arquivo de Captura
+
+O arquivo de captura é escrito em `/captures/insecure_http.pcap` dentro do container (caminho absoluto a partir da raiz), mas devido ao volume mount (`./captures:/captures`), também é acessível na sua máquina host.
+
+**Importante:** Dentro do container, use o caminho absoluto `/captures/insecure_http.pcap` (não caminhos relativos como `captures/insecure_http.pcap` que seriam relativos ao diretório de trabalho atual).
+
+**Da máquina host (recomendado):**
+```bash
+# Listar arquivos de captura
+ls -lh captures/
+
+# Verificar se o arquivo pcap foi criado e tem conteúdo
+ls -lh captures/insecure_http.pcap
+
+# Ver informações básicas sobre o arquivo de captura (se você tem tshark instalado localmente)
+tshark -r captures/insecure_http.pcap -c 10
+```
+
+**De dentro do container:**
+```bash
+# Entrar no container
+docker exec -it tshark_sniffer sh
+
+# Nota: O diretório de trabalho do container é /home/tshark, mas o arquivo de captura está na raiz
+# Use o caminho absoluto /captures/insecure_http.pcap
+
+# Verificar se o arquivo existe e seu tamanho
+ls -lh /captures/insecure_http.pcap
+
+# Ver pacotes capturados
+tshark -r /captures/insecure_http.pcap -c 10
+
+# Ver apenas tráfego HTTP
+tshark -r /captures/insecure_http.pcap -Y http
+
+# Sair do container
+exit
+```
+
+**Verificação rápida sem entrar no container:**
+```bash
+# Ver pacotes diretamente do host
+docker exec tshark_sniffer tshark -r /captures/insecure_http.pcap -c 10
+```
+
+#### 4. Analisar o Arquivo de Captura
+
+Se você tem Wireshark ou tshark instalado localmente:
+
+```bash
+# Ver resumo de pacotes
+tshark -r captures/insecure_http.pcap
+
+# Ver informações detalhadas dos pacotes
+tshark -r captures/insecure_http.pcap -V
+
+# Filtrar apenas tráfego HTTP
+tshark -r captures/insecure_http.pcap -Y http
+
+# Ver requisições e respostas HTTP
+tshark -r captures/insecure_http.pcap -Y http -T fields -e http.request.method -e http.request.uri -e http.response.code
+
+# Abrir no Wireshark GUI (se instalado)
+wireshark captures/insecure_http.pcap
+```
+
+#### 5. Testar o Container TShark Diretamente
+
+Você também pode executar comandos diretamente no container TShark:
+
+```bash
+# Entrar no container
+docker exec -it tshark_sniffer sh
+
+# Dentro do container, você pode executar comandos tshark:
+# Listar interfaces disponíveis
+tshark -D
+
+# Capturar tráfego ao vivo (se necessário)
+tshark -i eth0 -f "port 8080" -c 10
+
+# Sair do container
+exit
+```
+
+#### 6. Verificar se a Captura está Funcionando
+
+```bash
+# Verificar logs do container para erros
+docker compose logs sniffer
+
+# Verificar se o arquivo de captura está sendo escrito
+watch -n 1 'ls -lh captures/'
+
+# Parar o sniffer e verificar o tamanho final do arquivo
+docker compose stop sniffer
+ls -lh captures/insecure_http.pcap
+```
+
+**Nota**: O container TShark usa `network_mode: service:orders`, o que significa que ele compartilha o namespace de rede com o serviço de pedidos. Isso permite que ele capture tráfego na mesma interface de rede que o serviço de pedidos usa para se comunicar com o serviço de produtos. O container roda como usuário `root` para ter as permissões necessárias para captura de pacotes. O arquivo de captura é escrito em `/captures/insecure_http.pcap` (caminho absoluto) dentro do container e é acessível no host via volume mount em `./captures/insecure_http.pcap`.
+
 ## 📝 Variáveis de Ambiente
 
 ### Serviço de Pedidos

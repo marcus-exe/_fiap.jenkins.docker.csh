@@ -220,7 +220,15 @@ docker logs tshark_sniffer
 
 # Or using docker compose
 docker compose logs sniffer
+
+# Check all containers (including stopped ones)
+docker compose ps -a
+
+# If the container exited, check the logs for errors
+docker compose logs sniffer
 ```
+
+**Note:** The TShark container runs as `root` user (configured in docker-compose.yml) which is required for packet capture permissions. You may see a warning about this in the logs, which is expected and safe for this use case.
 
 #### 2. Generate Traffic to Capture
 
@@ -243,7 +251,9 @@ done
 
 #### 3. Check the Capture File
 
-The capture file is written to `/captures/insecure_http.pcap` inside the container, but due to the volume mount (`./captures:/captures`), it's also accessible on your host machine.
+The capture file is written to `/captures/insecure_http.pcap` inside the container (absolute path from root), but due to the volume mount (`./captures:/captures`), it's also accessible on your host machine.
+
+**Important:** Inside the container, use the absolute path `/captures/insecure_http.pcap` (not relative paths like `captures/insecure_http.pcap` which would be relative to your current working directory).
 
 **From the host machine (recommended):**
 ```bash
@@ -262,14 +272,26 @@ tshark -r captures/insecure_http.pcap -c 10
 # Enter the container
 docker exec -it tshark_sniffer sh
 
+# Note: The container's working directory is /home/tshark, but the capture file is at the root
+# Use the absolute path /captures/insecure_http.pcap
+
 # Check if the file exists and its size
 ls -lh /captures/insecure_http.pcap
 
-# View packet count (if tshark is available in the container)
+# View captured packets
 tshark -r /captures/insecure_http.pcap -c 10
+
+# View HTTP traffic only
+tshark -r /captures/insecure_http.pcap -Y http
 
 # Exit the container
 exit
+```
+
+**Quick check without entering the container:**
+```bash
+# View packets directly from host
+docker exec tshark_sniffer tshark -r /captures/insecure_http.pcap -c 10
 ```
 
 #### 4. Analyze the Capture File
@@ -326,7 +348,7 @@ docker compose stop sniffer
 ls -lh captures/insecure_http.pcap
 ```
 
-**Note**: The TShark container uses `network_mode: service:orders`, which means it shares the network namespace with the orders service. This allows it to capture traffic on the same network interface that the orders service uses to communicate with the products service.
+**Note**: The TShark container uses `network_mode: service:orders`, which means it shares the network namespace with the orders service. This allows it to capture traffic on the same network interface that the orders service uses to communicate with the products service. The container runs as `root` user to have the necessary permissions for packet capture. The capture file is written to `/captures/insecure_http.pcap` (absolute path) inside the container and is accessible on the host via the volume mount at `./captures/insecure_http.pcap`.
 
 ## 📝 Environment Variables
 
