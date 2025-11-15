@@ -205,6 +205,129 @@ curl -X POST http://localhost:8083/api/orders \
 - Products API Docs: http://localhost:8082/swagger
 - Orders API Docs: http://localhost:8083/swagger
 
+### Testing TShark Network Capture
+
+The TShark sniffer captures network traffic between the orders and products services. Here's how to test it:
+
+#### 1. Verify TShark Container is Running
+
+```bash
+# Check if the sniffer container is running
+docker ps | grep tshark_sniffer
+
+# View TShark logs
+docker logs tshark_sniffer
+
+# Or using docker compose
+docker compose logs sniffer
+```
+
+#### 2. Generate Traffic to Capture
+
+Since TShark is configured to capture traffic on port 8080 between the orders and products services, generate some inter-service communication:
+
+```bash
+# Create an order (this will trigger orders service to call products service)
+curl -X POST http://localhost:8083/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Test User","productId":1,"quantity":1}'
+
+# Make multiple requests to generate more traffic
+for i in {1..5}; do
+  curl -X POST http://localhost:8083/api/orders \
+    -H "Content-Type: application/json" \
+    -d "{\"customerName\":\"User $i\",\"productId\":$i,\"quantity\":$i}"
+  sleep 1
+done
+```
+
+#### 3. Check the Capture File
+
+The capture file is written to `/captures/insecure_http.pcap` inside the container, but due to the volume mount (`./captures:/captures`), it's also accessible on your host machine.
+
+**From the host machine (recommended):**
+```bash
+# List capture files
+ls -lh captures/
+
+# Check if the pcap file was created and has content
+ls -lh captures/insecure_http.pcap
+
+# View basic info about the capture file (if you have tshark installed locally)
+tshark -r captures/insecure_http.pcap -c 10
+```
+
+**From inside the container:**
+```bash
+# Enter the container
+docker exec -it tshark_sniffer sh
+
+# Check if the file exists and its size
+ls -lh /captures/insecure_http.pcap
+
+# View packet count (if tshark is available in the container)
+tshark -r /captures/insecure_http.pcap -c 10
+
+# Exit the container
+exit
+```
+
+#### 4. Analyze the Capture File
+
+If you have Wireshark or tshark installed locally:
+
+```bash
+# View packet summary
+tshark -r captures/insecure_http.pcap
+
+# View detailed packet information
+tshark -r captures/insecure_http.pcap -V
+
+# Filter for HTTP traffic only
+tshark -r captures/insecure_http.pcap -Y http
+
+# View HTTP requests and responses
+tshark -r captures/insecure_http.pcap -Y http -T fields -e http.request.method -e http.request.uri -e http.response.code
+
+# Open in Wireshark GUI (if installed)
+wireshark captures/insecure_http.pcap
+```
+
+#### 5. Test TShark Container Directly
+
+You can also execute commands directly in the TShark container:
+
+```bash
+# Enter the container
+docker exec -it tshark_sniffer sh
+
+# Inside the container, you can run tshark commands:
+# List available interfaces
+tshark -D
+
+# Capture live traffic (if needed)
+tshark -i eth0 -f "port 8080" -c 10
+
+# Exit the container
+exit
+```
+
+#### 6. Verify Capture is Working
+
+```bash
+# Check container logs for any errors
+docker compose logs sniffer
+
+# Verify the capture file is being written to
+watch -n 1 'ls -lh captures/'
+
+# Stop the sniffer and check final file size
+docker compose stop sniffer
+ls -lh captures/insecure_http.pcap
+```
+
+**Note**: The TShark container uses `network_mode: service:orders`, which means it shares the network namespace with the orders service. This allows it to capture traffic on the same network interface that the orders service uses to communicate with the products service.
+
 ## 📝 Environment Variables
 
 ### Orders Service

@@ -39,19 +39,20 @@ services:
       retries: 3
       
   # Sniffer commented out for local testing - uncomment when needed
-  # sniffer:
-  #   image: acceber/tshark:latest
-  #   container_name: tshark_sniffer
-  #   network_mode: service:orders 
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - NET_RAW
-  #   volumes:
-  #     - ./captures:/captures 
-  #   command: tshark -i eth0 -w /captures/insecure_http.pcap port 8080 and host products
-  #   depends_on:
-  #     - orders
-  #   restart: "no" 
+  sniffer:
+    image: kreinerattila/tshark:4.2.0
+    container_name: tshark_sniffer
+    network_mode: service:orders 
+    user: root
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./captures:/captures 
+    command: tshark -i eth0 -w /captures/insecure_http.pcap port 8080 and host products
+    depends_on:
+      - orders
+    restart: "no" 
 
 networks:
   my-app-network:
