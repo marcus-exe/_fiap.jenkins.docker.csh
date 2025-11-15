@@ -8,6 +8,11 @@ services:
     image: micro-service/products:latest
     ports:
       - "8082:8080"  # Port 8082 on host maps to 8080 in container (Jenkins uses 8080)
+    environment:
+      JWT_SECRET: YourSuperSecretKeyForJWTTokenGenerationThatShouldBeAtLeast32CharactersLong!
+      JWT_ISSUER: ProductsService
+      JWT_AUDIENCE: ProductsService
+      ASPNETCORE_ENVIRONMENT: Docker
     networks:
       - my-app-network
     healthcheck:
@@ -26,6 +31,9 @@ services:
       - "8083:8080"  # Port 8083 on host maps to 8080 in container
     environment:
       PRODUCTS_URL: http://products:8080 # Internal communication using service name
+      JWT_SECRET: YourSuperSecretKeyForJWTTokenGenerationThatShouldBeAtLeast32CharactersLong!
+      JWT_ISSUER: ProductsService
+      JWT_AUDIENCE: ProductsService
       ASPNETCORE_ENVIRONMENT: Docker
     networks:
       - my-app-network

@@ -135,24 +135,118 @@ micro-service/
 
 ### Products Service (Port 8082)
 
+**Public Endpoints:**
+- `POST /api/auth/login` - Authenticate and receive JWT token
+- `GET /health` - Health check endpoint
+
+**Protected Endpoints (Require JWT Token):**
 - `GET /api/products` - List all products
 - `GET /api/products/{id}` - Get product by ID
 - `POST /api/products` - Create a new product
-- `GET /health` - Health check endpoint
 
 ### Orders Service (Port 8083)
 
+**Public Endpoints:**
+- `POST /api/auth/login` - Authenticate and receive JWT token
+- `GET /health` - Health check endpoint
+
+**Protected Endpoints (Require JWT Token):**
 - `GET /api/orders` - List all orders
 - `GET /api/orders/{id}` - Get order by ID
 - `POST /api/orders` - Create a new order
-- `GET /health` - Health check endpoint
 
-## 🔒 Security Notes
+## 🔒 Security & Authentication
 
+### JWT Authentication
+
+The services use JWT (JSON Web Tokens) for authentication. All API endpoints (except `/health` and `/api/auth/login`) require a valid JWT token.
+
+**How to authenticate:**
+
+1. **Login to get a JWT token:**
+```bash
+# Login to Products Service
+curl -X POST http://localhost:8082/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# Login to Orders Service
+curl -X POST http://localhost:8083/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 3600
+}
+```
+
+2. **Use the token in API requests:**
+```bash
+# Get products (requires JWT token)
+curl -X GET http://localhost:8082/api/products \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+
+# Create an order (requires JWT token)
+curl -X POST http://localhost:8083/api/orders \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Test User","productId":1,"quantity":1}'
+```
+
+**Default Users:**
+- Username: `admin`, Password: `admin123`
+- Username: `user`, Password: `user123`
+
+**JWT Configuration:**
+- Token expiration: 1 hour
+- Secret key: Configured via `JWT_SECRET` environment variable
+- Issuer/Audience: Configured via `JWT_ISSUER` and `JWT_AUDIENCE` environment variables
+
+### Security Features Implemented
+
+✅ **Password Hashing**: Passwords are hashed using BCrypt with work factor 12 (secure and slow enough to prevent brute force attacks)
+
+✅ **Rate Limiting**: Login endpoints are protected with rate limiting (5 attempts per 15 minutes per username) to prevent brute force attacks
+
+✅ **Input Validation**: All endpoints include comprehensive input validation using data annotations and custom business rules
+
+✅ **JWT Security**: 
+- JWT secret validation (minimum 32 characters required)
+- Token expiration (1 hour)
+- Secure token generation with JTI (JWT ID) claims
+
+✅ **Security Best Practices**:
+- Passwords are never stored in plain text
+- User existence is not revealed on failed login (prevents user enumeration)
+- Rate limit is reset on successful login
+- Input validation prevents injection attacks and invalid data
+
+### Security Notes & Recommendations
+
+⚠️ **Current Limitations:**
+- Services communicate over HTTP (insecure) - JWT tokens are transmitted in plain text
+- In-memory user storage (not persistent, for demo purposes only)
+- Simple rate limiting (in production, use Redis or dedicated rate limiting service)
+
+🔒 **For Production:**
+- **Implement HTTPS/TLS** for encrypted communication
+- **Use a database** for user storage with proper password hashing (already using BCrypt)
+- **Use secrets management** (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault) for JWT_SECRET
+- **Implement Redis-based rate limiting** for distributed systems
+- **Add logging and monitoring** for security events
+- **Consider service mesh** solutions (Istio, Linkerd) for mTLS between services
+- **Implement CORS policies** if exposing APIs to web clients
+- **Add API versioning** for backward compatibility
+- **Regular security audits** and dependency updates
+
+📝 **Security Captures:**
 - The project includes TShark for network traffic analysis
-- Services currently communicate over HTTP (insecure)
-- For production, consider implementing HTTPS and service mesh solutions
 - Security captures are saved in the `captures/` directory
+- JWT tokens are forwarded between services for inter-service communication
 
 ## 🐛 Troubleshooting
 
@@ -184,18 +278,26 @@ docker system prune -a
 ### Quick Test
 
 ```bash
-# Health checks
+# Health checks (public endpoints)
 curl http://localhost:8082/health
 curl http://localhost:8083/health
 
-# Get products
-curl http://localhost:8082/api/products
+# First, login to get a JWT token
+TOKEN=$(curl -s -X POST http://localhost:8082/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | jq -r '.token')
 
-# Get orders
-curl http://localhost:8083/api/orders
+# Get products (requires JWT token)
+curl -X GET http://localhost:8082/api/products \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get orders (requires JWT token)
+curl -X GET http://localhost:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN"
 
 # Create a new order (tests inter-service communication)
 curl -X POST http://localhost:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"customerName":"Test User","productId":1,"quantity":1}'
 ```
@@ -352,10 +454,22 @@ ls -lh captures/insecure_http.pcap
 
 ## 📝 Environment Variables
 
+### Products Service
+
+- `JWT_SECRET`: Secret key for JWT token signing (default: hardcoded demo key)
+- `JWT_ISSUER`: JWT token issuer (default: `ProductsService`)
+- `JWT_AUDIENCE`: JWT token audience (default: `ProductsService`)
+- `ASPNETCORE_ENVIRONMENT`: Environment setting (Docker, Development, Production)
+
 ### Orders Service
 
 - `PRODUCTS_URL`: Internal URL of the products service (default: `http://products:8080`)
+- `JWT_SECRET`: Secret key for JWT token signing (must match Products Service)
+- `JWT_ISSUER`: JWT token issuer (must match Products Service)
+- `JWT_AUDIENCE`: JWT token audience (must match Products Service)
 - `ASPNETCORE_ENVIRONMENT`: Environment setting (Docker, Development, Production)
+
+**Important:** For production, use strong, unique JWT secrets and store them securely (e.g., environment variables, secrets management).
 
 ## 🤝 Contributing
 

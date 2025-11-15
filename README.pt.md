@@ -135,24 +135,118 @@ micro-service/
 
 ### Serviço de Produtos (Porta 8082)
 
+**Endpoints Públicos:**
+- `POST /api/auth/login` - Autenticar e receber token JWT
+- `GET /health` - Endpoint de verificação de saúde
+
+**Endpoints Protegidos (Requerem Token JWT):**
 - `GET /api/products` - Lista todos os produtos
 - `GET /api/products/{id}` - Obtém produto por ID
 - `POST /api/products` - Cria um novo produto
-- `GET /health` - Endpoint de verificação de saúde
 
 ### Serviço de Pedidos (Porta 8083)
 
+**Endpoints Públicos:**
+- `POST /api/auth/login` - Autenticar e receber token JWT
+- `GET /health` - Endpoint de verificação de saúde
+
+**Endpoints Protegidos (Requerem Token JWT):**
 - `GET /api/orders` - Lista todos os pedidos
 - `GET /api/orders/{id}` - Obtém pedido por ID
 - `POST /api/orders` - Cria um novo pedido
-- `GET /health` - Endpoint de verificação de saúde
 
-## 🔒 Notas de Segurança
+## 🔒 Segurança e Autenticação
 
+### Autenticação JWT
+
+Os serviços usam JWT (JSON Web Tokens) para autenticação. Todos os endpoints da API (exceto `/health` e `/api/auth/login`) requerem um token JWT válido.
+
+**Como autenticar:**
+
+1. **Login para obter um token JWT:**
+```bash
+# Login no Serviço de Produtos
+curl -X POST http://localhost:8082/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# Login no Serviço de Pedidos
+curl -X POST http://localhost:8083/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+**Resposta:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 3600
+}
+```
+
+2. **Usar o token nas requisições da API:**
+```bash
+# Obter produtos (requer token JWT)
+curl -X GET http://localhost:8082/api/products \
+  -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI"
+
+# Criar um pedido (requer token JWT)
+curl -X POST http://localhost:8083/api/orders \
+  -H "Authorization: Bearer SEU_TOKEN_JWT_AQUI" \
+  -H "Content-Type: application/json" \
+  -d '{"customerName":"Usuário Teste","productId":1,"quantity":1}'
+```
+
+**Usuários Padrão:**
+- Usuário: `admin`, Senha: `admin123`
+- Usuário: `user`, Senha: `user123`
+
+**Configuração JWT:**
+- Expiração do token: 1 hora
+- Chave secreta: Configurada via variável de ambiente `JWT_SECRET`
+- Emissor/Audiência: Configurado via variáveis de ambiente `JWT_ISSUER` e `JWT_AUDIENCE`
+
+### Funcionalidades de Segurança Implementadas
+
+✅ **Hash de Senhas**: Senhas são hasheadas usando BCrypt com work factor 12 (seguro e lento o suficiente para prevenir ataques de força bruta)
+
+✅ **Rate Limiting**: Endpoints de login são protegidos com rate limiting (5 tentativas por 15 minutos por usuário) para prevenir ataques de força bruta
+
+✅ **Validação de Entrada**: Todos os endpoints incluem validação abrangente de entrada usando anotações de dados e regras de negócio personalizadas
+
+✅ **Segurança JWT**: 
+- Validação do segredo JWT (mínimo de 32 caracteres obrigatório)
+- Expiração de token (1 hora)
+- Geração segura de token com claims JTI (JWT ID)
+
+✅ **Boas Práticas de Segurança**:
+- Senhas nunca são armazenadas em texto plano
+- Existência de usuário não é revelada em login falho (previne enumeração de usuários)
+- Rate limit é resetado em login bem-sucedido
+- Validação de entrada previne ataques de injeção e dados inválidos
+
+### Notas de Segurança e Recomendações
+
+⚠️ **Limitações Atuais:**
+- Serviços se comunicam via HTTP (inseguro) - tokens JWT são transmitidos em texto plano
+- Armazenamento de usuários em memória (não persistente, apenas para demonstração)
+- Rate limiting simples (em produção, use Redis ou serviço dedicado de rate limiting)
+
+🔒 **Para Produção:**
+- **Implementar HTTPS/TLS** para comunicação criptografada
+- **Usar banco de dados** para armazenamento de usuários com hash de senhas adequado (já usando BCrypt)
+- **Usar gerenciamento de segredos** (Azure Key Vault, AWS Secrets Manager, HashiCorp Vault) para JWT_SECRET
+- **Implementar rate limiting baseado em Redis** para sistemas distribuídos
+- **Adicionar logging e monitoramento** para eventos de segurança
+- **Considerar soluções de service mesh** (Istio, Linkerd) para mTLS entre serviços
+- **Implementar políticas CORS** se expondo APIs para clientes web
+- **Adicionar versionamento de API** para compatibilidade retroativa
+- **Auditorias de segurança regulares** e atualizações de dependências
+
+📝 **Capturas de Segurança:**
 - O projeto inclui TShark para análise de tráfego de rede
-- Os serviços atualmente se comunicam via HTTP (inseguro)
-- Para produção, considere implementar HTTPS e soluções de service mesh
 - As capturas de segurança são salvas no diretório `captures/`
+- Tokens JWT são encaminhados entre serviços para comunicação entre serviços
 
 ## 🐛 Solução de Problemas
 
@@ -184,20 +278,28 @@ docker system prune -a
 ### Teste Rápido
 
 ```bash
-# Verificações de saúde
+# Verificações de saúde (endpoints públicos)
 curl http://localhost:8082/health
 curl http://localhost:8083/health
 
-# Obter produtos
-curl http://localhost:8082/api/products
+# Primeiro, faça login para obter um token JWT
+TOKEN=$(curl -s -X POST http://localhost:8082/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | jq -r '.token')
 
-# Obter pedidos
-curl http://localhost:8083/api/orders
+# Obter produtos (requer token JWT)
+curl -X GET http://localhost:8082/api/products \
+  -H "Authorization: Bearer $TOKEN"
+
+# Obter pedidos (requer token JWT)
+curl -X GET http://localhost:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN"
 
 # Criar um novo pedido (testa comunicação entre serviços)
 curl -X POST http://localhost:8083/api/orders \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"customerName":"Test User","productId":1,"quantity":1}'
+  -d '{"customerName":"Usuário Teste","productId":1,"quantity":1}'
 ```
 
 ### Swagger UI
@@ -352,10 +454,22 @@ ls -lh captures/insecure_http.pcap
 
 ## 📝 Variáveis de Ambiente
 
+### Serviço de Produtos
+
+- `JWT_SECRET`: Chave secreta para assinatura de tokens JWT (padrão: chave demo hardcoded)
+- `JWT_ISSUER`: Emissor do token JWT (padrão: `ProductsService`)
+- `JWT_AUDIENCE`: Audiência do token JWT (padrão: `ProductsService`)
+- `ASPNETCORE_ENVIRONMENT`: Configuração de ambiente (Docker, Development, Production)
+
 ### Serviço de Pedidos
 
 - `PRODUCTS_URL`: URL interna do serviço de produtos (padrão: `http://products:8080`)
+- `JWT_SECRET`: Chave secreta para assinatura de tokens JWT (deve corresponder ao Serviço de Produtos)
+- `JWT_ISSUER`: Emissor do token JWT (deve corresponder ao Serviço de Produtos)
+- `JWT_AUDIENCE`: Audiência do token JWT (deve corresponder ao Serviço de Produtos)
 - `ASPNETCORE_ENVIRONMENT`: Configuração de ambiente (Docker, Development, Production)
+
+**Importante:** Para produção, use chaves JWT fortes e únicas e armazene-as com segurança (ex: variáveis de ambiente, gerenciamento de segredos).
 
 ## 🤝 Contribuindo
 
